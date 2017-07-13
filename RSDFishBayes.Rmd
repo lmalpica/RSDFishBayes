@@ -1,0 +1,96 @@
+---
+title: "CEI's fish abundance"
+author: "Luis Malpica"
+date: "Jul, 2017"
+output: 
+  html_document:
+    code_folding: hide
+---
+#Code to sort, plot & analyze CEI's fish abundance
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = FALSE)
+#code_folding: hide
+```
+
+Data has already been cleaned and sorted, the rest of the code to get to these point was very dirty. Please let me know if you would like to also see that part. These data tables contain average density values per site (AveSpm2) for 2012 and 2013 indicating wether lionfish were removed (1) or not (2), you can disregard the SumSpm2 column, the rest of the column names should be self explanatory.
+
+```{r}
+#Load and manipulate data
+library(lme4)
+library(tidyverse)
+library(arm)
+library(sjPlot)
+library(sjmisc)
+library(rstanarm)
+
+#custom theme for sjp plots
+sjp.setTheme(base = theme_classic(), 
+             legend.title.face = "italic", # title font face
+             legend.inside = TRUE,         # legend inside plot
+             legend.color = "grey50",      # legend label color
+             legend.pos = "bottom right",  # legend position inside plot
+             axis.title.size = 1,
+             axis.textsize = 1,
+             legend.size = 1,
+             legend.title.size = 1,
+             geom.label.size = 3)
+
+#Load data
+LFtar <- read.table("data/LFtar.csv",sep=",", header=T)
+comptar <- read.table("data/comptar.csv",sep=",", header=T)
+nopredtar <- read.table("data/nopredtar.csv",sep=",", header=T)
+smallstar <- read.table("data/smallstar.csv",sep=",", header=T)
+
+#I use these following lines to log densities (AveSpm2)
+fish=list(LFtar,comptar,nopredtar,smallstar)
+#log_fish <- lapply(fish,function(x)dplyr::mutate(x, log_AveSpm2 = arm::rescale(log(AveSpm2)))) #not used
+log_fish <- lapply(fish,function(x)dplyr::mutate(x, log_AveSpm2 = (log(AveSpm2))))
+log_fish <- lapply(log_fish, transform, DateCode = as.factor(DateCode), Site = as.character(Site),
+                                        RemovTreat = as.factor(RemovTreat))
+
+invasivecomp <- as.data.frame(log_fish[[1]])
+nativecomp <- as.data.frame(log_fish[[2]])
+allfishsps <- as.data.frame(log_fish[[3]])
+preyfishsps <- as.data.frame(log_fish[[4]])
+
+```
+
+```{r}
+#Simplified run of Mixed effect model for Reef fish densities (lionfish, native predators, all community, and prey only)
+m_LF <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = invasivecomp) # exercise
+m_natcomp <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = nativecomp) # exercise
+m_allsps <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = allfishsps) # exercise
+m_preysps <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = preyfishsps) # exercise
+
+arm::display(m_LF)
+arm::display(m_natcomp)
+arm::display(m_allsps)
+arm::display(m_preysps)
+
+#Model coeff plots with sjp.lmer
+sjp.lmer(m_LF, type = "fe", axis.lim = c(-2.4, 1.2))
+#ggsave("graphs/LF_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
+sjp.lmer(m_natcomp, type = "fe", axis.lim = c(-2.4, 1.2))
+#ggsave("graphs/Comp_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
+sjp.lmer(m_allsps, type = "fe", axis.lim = c(-2.4, 1.2))
+#ggsave("graphs/allsps_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
+sjp.lmer(m_preysps, type = "fe", axis.lim = c(-2.4, 1.2))
+#ggsave("graphs/preysps_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
+
+#Bayesian version of models with stan_lmer
+mb_LF <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = invasivecomp) # exercise
+mb_natcomp <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = nativecomp) # exercise
+mb_allsps <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = allfishsps) # exercise
+mb_preysps <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = preyfishsps) # exercise
+
+summary(mb_LF)
+summary(mb_natcomp)
+summary(mb_allsps)
+summary(mb_preysps)
+
+plot(mb_LF)
+plot(mb_natcomp)
+plot(mb_allsps)
+plot(mb_preysps)
+
+```
