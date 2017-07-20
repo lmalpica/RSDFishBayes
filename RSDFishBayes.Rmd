@@ -21,7 +21,6 @@ library(tidyverse)
 library(arm)
 library(sjPlot)
 library(sjmisc)
-library(rstanarm)
 
 #custom theme for sjp plots
 sjp.setTheme(base = theme_classic(), 
@@ -57,31 +56,40 @@ preyfishsps <- as.data.frame(log_fish[[4]])
 
 ```{r}
 #Simplified run of Mixed effect model for Reef fish densities (lionfish, native predators, all community, and prey only)
-m_LF <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = invasivecomp) # exercise
-m_natcomp <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = nativecomp) # exercise
-m_allsps <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = allfishsps) # exercise
-m_preysps <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = preyfishsps) # exercise
+m_LF_lmer <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = invasivecomp) # exercise
+m_natcomp_lmer <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = nativecomp) # exercise
+m_allsps_lmer <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = allfishsps) # exercise
+m_preysps_lmer <- lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = preyfishsps) # exercise
 
-arm::display(m_LF)
-arm::display(m_natcomp)
-arm::display(m_allsps)
-arm::display(m_preysps)
+arm::display(m_LF_lmer)
+arm::display(m_natcomp_lmer)
+arm::display(m_allsps_lmer)
+arm::display(m_preysps_lmer)
 
 #Model coeff plots with sjp.lmer
-sjp.lmer(m_LF, type = "fe", axis.lim = c(-2.4, 1.2))
+sjp.lmer(m_LF_lmer, type = "fe", axis.lim = c(-2.4, 1.2))
 #ggsave("graphs/LF_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
-sjp.lmer(m_natcomp, type = "fe", axis.lim = c(-2.4, 1.2))
+sjp.lmer(m_natcomp_lmer, type = "fe", axis.lim = c(-2.4, 1.2))
 #ggsave("graphs/Comp_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
-sjp.lmer(m_allsps, type = "fe", axis.lim = c(-2.4, 1.2))
+sjp.lmer(m_allsps_lmer, type = "fe", axis.lim = c(-2.4, 1.2))
 #ggsave("graphs/allsps_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
-sjp.lmer(m_preysps, type = "fe", axis.lim = c(-2.4, 1.2))
+sjp.lmer(m_preysps_lmer, type = "fe", axis.lim = c(-2.4, 1.2))
 #ggsave("graphs/preysps_lmm.pdf", width = 5, height = 4, useDingbats=FALSE)
 
-#Bayesian version of models with stan_lmer
-mb_LF <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = invasivecomp) # exercise
-mb_natcomp <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = nativecomp) # exercise
-mb_allsps <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = allfishsps) # exercise
-mb_preysps <- stan_lmer(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), data = preyfishsps) # exercise
+#Bayesian version of models:
+library(brms)
+options(mc.cores = parallel::detectCores())
+mb_LF <- brm(log_AveSpm2 ~ RemovTreat + DateCode + (1 | Site), 
+  data = invasivecomp, 
+  prior = c(
+    prior(normal(0, 2), class = "b"),
+    prior(normal(0, 10), class = "Intercept"),
+    prior(student_t(3, 0, 2), class = "sd")),
+  control = list(adapt_delta = 0.99))
+
+mb_natcomp <- update(mb_LF, newdata = nativecomp, control = list(adapt_delta = 0.99))
+mb_allsps <- update(mb_LF, newdata = allfishsps, control = list(adapt_delta = 0.99))
+mb_preysps <- update(mb_LF, newdata = preyfishsps, control = list(adapt_delta = 0.99))
 
 summary(mb_LF)
 summary(mb_natcomp)
@@ -93,4 +101,13 @@ plot(mb_natcomp)
 plot(mb_allsps)
 plot(mb_preysps)
 
+marginal_effects(mb_LF, effects = "RemovTreat")
+marginal_effects(mb_natcomp, effects = "RemovTreat")
+marginal_effects(mb_allsps, effects = "RemovTreat")
+marginal_effects(mb_preysps, effects = "RemovTreat")
+
+# brms::pp_check(mb_LF, nsamples = 100)
+# brms::pp_check(mb_natcomp, nsamples = 100)
+# brms::pp_check(mb_allsps, nsamples = 100)
+# brms::pp_check(mb_preysps, nsamples = 100)
 ```
